@@ -20,6 +20,9 @@ To install this just login inside your server and follow those commands
 cd /root
 wget https://github.com/MythicalLTD/Stresser/releases/latest/download/StresserAMD
 
+# Set the permissions
+chmod u+x StresserAMD
+
 # Create a systemd service to make it run in the background 
 sudo nano /etc/systemd/system/stresser.service
 
