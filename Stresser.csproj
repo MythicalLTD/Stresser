@@ -10,7 +10,7 @@
     <Authors>MythicalSystems</Authors>
     <Company>MythicalSystems</Company>
     <Copyright>2024 MythicalSystems</Copyright>
-    <Description>The daemon for our open source web hosting panel.</Description>
+    <Description>A free ddos tool for testing</Description>
     <AssemblyVersion>1.0.0</AssemblyVersion>
     <FileVersion>1.0.0</FileVersion>
   </PropertyGroup>
@@ -23,6 +23,11 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Salaros.ConfigParser" Version="0.3.8" />
   </ItemGroup>
+  <ItemGroup>
+  <Compile Remove="**/StresserHTTP/**"/>
+  <Compile Remove="**/StresserTCP/**"/>
+  <Compile Remove="**/StresserUDP/**"/>
+</ItemGroup>
 
   <ItemGroup>
     <None Remove="config.ini" />
@@ -36,4 +41,5 @@
   <ItemGroup>
     <EmbeddedResource Remove="logs\**" />
   </ItemGroup>
+
 </Project>

@@ -1,3 +1,5 @@
 /obj
 /bin
 /.mono
+/Stresser*/obj
+/Stresser*/bin

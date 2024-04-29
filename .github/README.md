@@ -1,5 +1,5 @@
 # Stresser
-A free l7 stresser for educational and testing purposes only!
+A free l7/l4 stresser for educational and testing purposes only!
 
 
 # !! WARRNING !!
@@ -53,7 +53,6 @@ And now just make sure you configure your settings inside `/root/config.ini`!
 # Are there any nodes i can get for free for testing?
 Sure
 ```text
-141.144.253.29:1492 Z4kok2LVferBPQ39rBhkywJjthFmehik
 158.178.196.227 Z4kok2LVferBPQ39rBhkywJjthFmehik
 158.180.32.161 Z4kok2LVferBPQ39rBhkywJjthFmehik
 ```
